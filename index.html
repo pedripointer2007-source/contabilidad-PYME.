@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestión Contable PyME</title>
+  <style>
+    :root{
+      --bg:#eef2f7; --panel:#fff; --line:#d8e0ea; --text:#1f2937; --muted:#64748b;
+      --primary:#1d4ed8; --primary2:#0f766e; --danger:#b91c1c; --sidebar:#0f172a; --sidebar2:#111827;
+      --shadow:0 10px 24px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box;margin:0;padding:0;font-family:Inter,Arial,sans-serif}
+    body{background:var(--bg);color:var(--text);min-height:100vh}
+    .hidden{display:none!important}
+    .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .login-card,.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+    .login-card{width:100%;max-width:420px;padding:28px}
+    .login-card h1{font-size:24px;margin-bottom:8px}
+    .login-card p{color:var(--muted);margin-bottom:20px}
+    .field{margin-bottom:14px}
+    .field label{display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#334155}
+    .input,.select,.textarea{
+      width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--text);outline:none
+    }
+    .textarea{min-height:100px;resize:vertical}
+    .btn{border:0;border-radius:12px;padding:11px 14px;cursor:pointer;font-weight:700;color:#fff;transition:.2s ease}
+    .btn:hover{transform:translateY(-1px)}
+    .btn-primary{background:linear-gradient(90deg,var(--primary),#7c3aed)}
+    .btn-success{background:linear-gradient(90deg,var(--primary2),#0ea5e9)}
+    .btn-danger{background:linear-gradient(90deg,var(--danger),#ef4444)}
+    .btn-ghost{background:#334155}
+    .app{display:flex;min-height:100vh}
+    .sidebar{width:280px;background:linear-gradient(180deg,var(--sidebar),var(--sidebar2));color:#e5e7eb;padding:20px;position:sticky;top:0;height:100vh}
+    .brand{font-size:20px;font-weight:800;line-height:1.2;margin-bottom:18px}
+    .menu{display:flex;flex-direction:column;gap:8px}
+    .menu button{width:100%;text-align:left;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:#e5e7eb;padding:12px 14px;border-radius:12px;cursor:pointer}
+    .menu button.active,.menu button:hover{background:rgba(59,130,246,.18)}
+    .main{flex:1;padding:20px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+    .title h2{font-size:22px}
+    .title p{color:var(--muted);font-size:14px}
+    .section{display:none}
+    .section.active{display:block}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .card{padding:18px;margin-bottom:16px}
+    .card h3{font-size:18px;margin-bottom:14px}
+    .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .kpi{padding:16px;border-radius:14px;background:#f8fafc;border:1px solid var(--line)}
+    .kpi span{display:block;color:var(--muted);font-size:13px;margin-bottom:8px}
+    .kpi strong{font-size:22px}
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:980px}
+    th,td{padding:11px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:14px}
+    th{background:#f8fafc;color:#334155}
+    .row-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .muted{color:var(--muted);font-size:13px}
+    .two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+    .modal{width:100%;max-width:720px;background:#fff;border-radius:18px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.2)}
+    .modal h3{margin-bottom:14px}
+    @media (max-width: 900px){
+      .app{flex-direction:column}
+      .sidebar{width:100%;height:auto;position:relative}
+      .two-col{grid-template-columns:1fr}
+      table{min-width:820px}
+    }
+  </style>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+</head>
+<body>
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <h1>Acceso al sistema</h1>
+    <p>Gestión contable formal para pyme</p>
+    <div class="field"><label>Usuario</label><input class="input" id="loginUser" type="text"></div>
+    <div class="field"><label>Contraseña</label><input class="input" id="loginPass" type="password"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="login()">Ingresar</button>
+    <p id="loginMsg" class="muted" style="margin-top:10px;"></p>
+  </div>
+</div>
+
+<div id="appScreen" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand">Gestión Contable PyME</div>
+    <div class="menu">
+      <button class="active" onclick="showSection('dashboard', this)">Dashboard</button>
+      <button onclick="showSection('ingresos', this)">Ingresos</button>
+      <button onclick="showSection('gastos', this)">Gastos</button>
+      <button onclick="showSection('diario', this)">Libro Diario</button>
+      <button onclick="showSection('clientes', this)">Clientes</button>
+      <button onclick="showSection('proveedores', this)">Proveedores</button>
+      <button onclick="showSection('cuentas', this)">Cuentas por Cobrar/Pagar</button>
+      <button onclick="showSection('facturas', this)">Facturas</button>
+      <button onclick="showSection('reportes', this)">Reportes</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="title">
+        <h2 id="pageTitle">Dashboard</h2>
+        <p>Panel formal de control financiero</p>
+      </div>
+      <div class="row-actions">
+        <button class="btn btn-ghost" onclick="reloadAll()">Actualizar</button>
+      </div>
+    </div>
+
+    <section id="dashboard" class="section active">
+      <div class="card">
+        <h3>Resumen general</h3>
+        <div class="kpis">
+          <div class="kpi"><span>Ingresos</span><strong id="kpiIngresos">₡0</strong></div>
+          <div class="kpi"><span>Gastos</span><strong id="kpiGastos">₡0</strong></div>
+          <div class="kpi"><span>Balance actual</span><strong id="kpiBalance">₡0</strong></div>
+          <div class="kpi"><span>Ganancia mensual</span><strong id="kpiGanancia">₡0</strong></div>
+          <div class="kpi"><span>Cuentas por cobrar</span><strong id="kpiCobrar">₡0</strong></div>
+          <div class="kpi"><span>Cuentas por pagar</span><strong id="kpiPagar">₡0</strong></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Gráficas</h3>
+        <div id="chartVentas" style="height:320px"></div>
+        <div id="chartGastos" style="height:320px"></div>
+        <div id="chartUtilidad" style="height:320px"></div>
+      </div>
+    </section>
+
+    <section id="ingresos" class="section">
+      <div class="card">
+        <h3>Registro de ingresos</h3>
+        <div class="grid">
+          <div class="field"><label>Fecha</label><input class="input" id="ingFecha" type="date"></div>
+          <div class="field"><label>Descripción</label><input class="input" id="ingDesc"></div>
+          <div class="field"><label>Monto</label><input class="input" id="ingMonto" type="number"></div>
+          <div class="field"><label>Método de pago</label><input class="input" id="ingMetodo" placeholder="Efectivo, transferencia..."></div>
+          <div class="field"><label>Cliente (opcional)</label><select class="select" id="ingCliente"></select></div>
+          <div class="field"><label>Referencia</label><input class="input" id="ingRef"></div>
+        </div>
+        <div class="row-actions" style="margin-top:12px;">
+          <button class="btn btn-success" id="btnSaveIngreso" onclick="saveIngreso()">Agregar</button>
+          <button class="btn btn-ghost" onclick="resetFormIngreso()">Limpiar</button>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Fecha</th><th>Descripción</th><th>Monto</th><th>Método</th><th>Cliente</th><th>Acciones</th></tr></thead>
+          <tbody id="ingresosTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="gastos" class="section">
+      <div class="card">
+        <h3>Registro de gastos</h3>
+        <div class="grid">
+          <div class="field"><label>Fecha</label><input class="input" id="gasFecha" type="date"></div>
+          <div class="field"><label>Categoría</label><input class="input" id="gasCategoria"></div>
+          <div class="field"><label>Descripción</label><input class="input" id="gasDesc"></div>
+          <div class="field"><label>Monto</label><input class="input" id="gasMonto" type="number"></div>
+          <div class="field"><label>Tipo de gasto</label><select class="select" id="gasTipo"><option>Fijo</option><option>Variable</option></select></div>
+          <div class="field"><label>Proveedor (opcional)</label><select class="select" id="gasProveedor"></select></div>
+          <div class="field"><label>Referencia</label><input class="input" id="gasRef"></div>
+        </div>
+        <div class="row-actions" style="margin-top:12px;">
+          <button class="btn btn-success" id="btnSaveGasto" onclick="saveGasto()">Agregar</button>
+          <button class="btn btn-ghost" onclick="resetFormGasto()">Limpiar</button>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th>Tipo</th><th>Proveedor</th><th>Acciones</th></tr></thead>
+          <tbody id="gastosTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="diario" class="section">
+      <div class="card">
+        <h3>Libro diario</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th><th>Saldo acumulado</th></tr></thead>
+            <tbody id="diarioTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="clientes" class="section">
+      <div class="card">
+        <h3>Clientes</h3>
+        <div class="grid">
+          <div class="field"><label>Nombre</label><input class="input" id="cliNombre"></div>
+          <div class="field"><label>Teléfono</label><input class="input" id="cliTelefono"></div>
+          <div class="field"><label>Correo</label><input class="input" id="cliCorreo"></div>
+          <div class="field"><label>Dirección</label><input class="input" id="cliDireccion"></div>
+        </div>
+        <div class="row-actions" style="margin-top:12px;">
+          <button class="btn btn-success" id="btnSaveCliente" onclick="saveCliente()">Guardar</button>
+          <button class="btn btn-ghost" onclick="resetFormCliente()">Limpiar</button>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Nombre</th><th>Teléfono</th><th>Correo</th><th>Saldo</th><th>Acciones</th></tr></thead>
+          <tbody id="clientesTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="proveedores" class="section">
+      <div class="card">
+        <h3>Proveedores</h3>
+        <div class="grid">
+          <div class="field"><label>Nombre</label><input class="input" id="provNombre"></div>
+          <div class="field"><label>Teléfono</label><input class="input" id="provTelefono"></div>
+          <div class="field"><label>Correo</label><input class="input" id="provCorreo"></div>
+          <div class="field"><label>Dirección</label><input class="input" id="provDireccion"></div>
+        </div>
+        <div class="row-actions" style="margin-top:12px;">
+          <button class="btn btn-success" id="btnSaveProveedor" onclick="saveProveedor()">Guardar</button>
+          <button class="btn btn-ghost" onclick="resetFormProveedor()">Limpiar</button>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Nombre</th><th>Teléfono</th><th>Correo</th><th>Saldo</th><th>Acciones</th></tr></thead>
+          <tbody id="proveedoresTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="cuentas" class="section">
+      <div class="card">
+        <h3>Cuentas por cobrar y pagar</h3>
+        <div class="grid">
+          <div class="field">
+            <label>Tipo</label>
+            <select class="select" id="ctaTipo"><option>Por Cobrar</option><option>Por Pagar</option></select>
+          </div>
+          <div class="field"><label>Tercero</label><input class="input" id="ctaTerceroNombre"></div>
+          <div class="field"><label>Descripción</label><input class="input" id="ctaDesc"></div>
+          <div class="field"><label>Monto</label><input class="input" id="ctaMonto" type="number"></div>
+          <div class="field"><label>Vencimiento</label><input class="input" id="ctaVencimiento" type="date"></div>
+          <div class="field">
+            <label>Estado</label>
+            <select class="select" id="ctaEstado"><option>Pendiente</option><option>Pagado</option></select>
+          </div>
+        </div>
+        <button class="btn btn-success" style="margin-top:12px;" onclick="saveCuenta()">Guardar</button>
+      </div>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Tercero</th><th>Descripción</th><th>Monto</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+          <tbody id="cuentasTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="facturas" class="section">
+      <div class="card">
+        <h3>Facturas</h3>
+        <div class="grid">
+          <div class="field"><label>Número</label><input class="input" id="facNumero"></div>
+          <div class="field"><label>Cliente</label><select class="select" id="facCliente"></select></div>
+          <div class="field"><label>Fecha</label><input class="input" id="facFecha" type="date"></div>
+          <div class="field"><label>Vencimiento</label><input class="input" id="facVencimiento" type="date"></div>
+          <div class="field"><label>Subtotal</label><input class="input" id="facSubtotal" type="number"></div>
+          <div class="field"><label>Impuesto</label><input class="input" id="facImpuesto" type="number"></div>
+          <div class="field"><label>Total</label><input class="input" id="facTotal" type="number"></div>
+          <div class="field">
+            <label>Estado</label>
+            <select class="select" id="facEstado"><option>Pendiente</option><option>Pagada</option><option>Vencida</option><option>Parcial</option></select>
+          </div>
+        </div>
+        <div class="field"><label>Notas</label><textarea class="textarea" id="facNotas"></textarea></div>
+        <div class="row-actions">
+          <button class="btn btn-success" id="btnSaveFactura" onclick="saveFactura()">Guardar</button>
+          <button class="btn btn-ghost" onclick="resetFormFactura()">Limpiar</button>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Vencimiento</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="facturasTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="reportes" class="section">
+      <div class="card">
+        <h3>Reportes</h3>
+        <div class="two-col">
+          <div class="field"><label>Desde</label><input class="input" id="repDesde" type="date"></div>
+          <div class="field"><label>Hasta</label><input class="input" id="repHasta" type="date"></div>
+        </div>
+        <div class="row-actions" style="margin-top:12px;">
+          <button class="btn btn-primary" onclick="generateReport()">Generar reporte</button>
+          <button class="btn btn-ghost" onclick="exportCSV()">Exportar CSV</button>
+        </div>
+        <div class="kpis" style="margin-top:16px;">
+          <div class="kpi"><span>Ingresos filtrados</span><strong id="repIngresos">₡0</strong></div>
+          <div class="kpi"><span>Gastos filtrados</span><strong id="repGastos">₡0</strong></div>
+          <div class="kpi"><span>Utilidad</span><strong id="repUtilidad">₡0</strong></div>
+          <div class="kpi"><span>Movimientos</span><strong id="repMovs">0</strong></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="modal">
+    <h3 id="modalTitle">Editar</h3>
+    <div id="modalBody"></div>
+    <div class="row-actions" style="margin-top:14px;">
+      <button class="btn btn-success" onclick="modalSave()">Guardar cambios</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxpiQX1pO9v5tMaV-X8g0HDVG5QA4cOfqVPVyYc1Lmw_8d_sIR9Jao1LqJAv014QSRNGg/exec";
+const USER = "admin";
+const PASS = "45.30.38";
+
+let DB = { usuarios: [], clientes: [], proveedores: [], ingresos: [], gastos: [], facturas: [], movimientos: [], cuentas: [], configuracion: [] };
+let modalState = { type: null, id: null, data: {} };
+google.charts.load("current", { packages: ["corechart"] });
+
+function money(n){ return "₡" + Number(n || 0).toLocaleString("es-CR"); }
+
+function login(){
+  const u = loginUser.value.trim();
+  const p = loginPass.value.trim();
+  if(u===USER && p===PASS){
+    loginScreen.classList.add("hidden");
+    appScreen.classList.remove("hidden");
+    reloadAll();
+  } else {
+    loginMsg.textContent = "Usuario o contraseña incorrectos.";
+  }
+}
+
+function showSection(id, btn){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  pageTitle.textContent = btn.textContent;
+  if(id==="reportes") generateReport();
+  if(id==="dashboard") drawCharts();
+}
+
+async function apiGet(action){
+  const res = await fetch(`${API_URL}?action=${action}&t=${Date.now()}`, {cache:"no-store"});
+  return await res.json();
+}
+
+async function apiPost(payload){
+  const res = await fetch(API_URL, {
+    method:"POST",
+    body: JSON.stringify(payload),
+    cache:"no-store"
+  });
+  return await res.json();
+}
+
+async function reloadAll(){
+  DB.usuarios = await apiGet("usuarios");
+  DB.clientes = await apiGet("clientes");
+  DB.proveedores = await apiGet("proveedores");
+  DB.ingresos = await apiGet("ingresos");
+  DB.gastos = await apiGet("gastos");
+  DB.facturas = await apiGet("facturas");
+  DB.movimientos = await apiGet("movimientos");
+  DB.cuentas = await apiGet("cuentas");
+  renderTables();
+  updateDashboard();
+  fillSelects();
+  drawCharts();
+}
+
+function renderTables(){
+  clientesTable.innerHTML = DB.clientes.map(c=>`
+    <tr>
+      <td>${c.nombre||"-"}</td><td>${c.telefono||"-"}</td><td>${c.correo||"-"}</td><td>${money(c.saldo)}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editCliente('${c.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('cliente','${c.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+
+  proveedoresTable.innerHTML = DB.proveedores.map(p=>`
+    <tr>
+      <td>${p.nombre||"-"}</td><td>${p.telefono||"-"}</td><td>${p.correo||"-"}</td><td>${money(p.saldo)}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editProveedor('${p.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('proveedor','${p.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+
+  ingresosTable.innerHTML = DB.ingresos.map(i=>`
+    <tr>
+      <td>${i.fecha||"-"}</td><td>${i.descripcion||"-"}</td><td>${money(i.monto)}</td><td>${i.metodoPago||"-"}</td><td>${i.clienteNombre||"-"}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editIngreso('${i.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('ingreso','${i.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+
+  gastosTable.innerHTML = DB.gastos.map(g=>`
+    <tr>
+      <td>${g.fecha||"-"}</td><td>${g.categoria||"-"}</td><td>${g.descripcion||"-"}</td><td>${money(g.monto)}</td><td>${g.tipoGasto||"-"}</td><td>${g.proveedorNombre||"-"}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editGasto('${g.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('gasto','${g.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+
+  diarioTable.innerHTML = DB.movimientos.map(m=>`
+    <tr><td>${m.fecha||"-"}</td><td>${m.tipo||"-"}</td><td>${m.descripcion||"-"}</td><td>${money(m.monto)}</td><td>${money(m.saldoAcumulado || m.saldo)}</td></tr>
+  `).join("");
+
+  cuentasTable.innerHTML = DB.cuentas.map(c=>`
+    <tr><td>${c.tipo||"-"}</td><td>${c.terceroNombre||"-"}</td><td>${c.descripcion||"-"}</td><td>${money(c.monto)}</td><td>${c.vencimiento||"-"}</td><td>${c.estado||"-"}</td></tr>
+  `).join("");
+
+  facturasTable.innerHTML = DB.facturas.map(f=>`
+    <tr>
+      <td>${f.numero||"-"}</td><td>${f.clienteNombre||"-"}</td><td>${f.fecha||"-"}</td><td>${f.vencimiento||"-"}</td><td>${money(f.total)}</td><td>${f.estado||"-"}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editFactura('${f.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('factura','${f.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+}
+
+function updateDashboard(){
+  const ingresos = DB.ingresos.reduce((a,b)=>a+Number(b.monto||0),0);
+  const gastos = DB.gastos.reduce((a,b)=>a+Number(b.monto||0),0);
+  const balance = ingresos - gastos;
+  const mes = new Date().getMonth()+1;
+  const year = new Date().getFullYear();
+  const ym = `${year}-${String(mes).padStart(2,"0")}`;
+  const gananciaMensual = DB.ingresos.filter(x => (x.fecha||"").startsWith(ym)).reduce((a,b)=>a+Number(b.monto||0),0) - DB.gastos.filter(x => (x.fecha||"").startsWith(ym)).reduce((a,b)=>a+Number(b.monto||0),0);
+  const cobrar = DB.cuentas.filter(c => c.tipo==="Por Cobrar" && c.estado==="Pendiente").reduce((a,b)=>a+Number(b.monto||0),0);
+  const pagar = DB.cuentas.filter(c => c.tipo==="Por Pagar" && c.estado==="Pendiente").reduce((a,b)=>a+Number(b.monto||0),0);
+
+  kpiIngresos.textContent = money(ingresos);
+  kpiGastos.textContent = money(gastos);
+  kpiBalance.textContent = money(balance);
+  kpiGanancia.textContent = money(gananciaMensual);
+  kpiCobrar.textContent = money(cobrar);
+  kpiPagar.textContent = money(pagar);
+}
+
+function fillSelects(){
+  ingCliente.innerHTML = `<option value="">Sin cliente</option>` + DB.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+  gasProveedor.innerHTML = `<option value="">Sin proveedor</option>` + DB.proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+  facCliente.innerHTML = `<option value="">Seleccione</option>` + DB.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+}
+
+function resetFormCliente(){ cliNombre.value=""; cliTelefono.value=""; cliCorreo.value=""; cliDireccion.value=""; }
+function resetFormProveedor(){ provNombre.value=""; provTelefono.value=""; provCorreo.value=""; provDireccion.value=""; }
+function resetFormIngreso(){ ingDesc.value=""; ingMonto.value=""; ingMetodo.value=""; ingRef.value=""; ingCliente.value=""; }
+function resetFormGasto(){ gasCategoria.value=""; gasDesc.value=""; gasMonto.value=""; gasRef.value=""; gasProveedor.value=""; gasTipo.value="Fijo"; }
+function resetFormFactura(){ facNumero.value=""; facFecha.value=""; facVencimiento.value=""; facSubtotal.value=""; facImpuesto.value=""; facTotal.value=""; facNotas.value=""; facEstado.value="Pendiente"; facCliente.value=""; }
+
+async function saveCliente(){
+  const payload = modalState.type==="cliente" ? {type:"cliente", action:"update", id:modalState.id, nombre:cliNombre.value, telefono:cliTelefono.value, correo:cliCorreo.value, direccion:cliDireccion.value, saldo:Number(modalState.data.saldo||0)} :
+  {type:"cliente", action:"create", nombre:cliNombre.value, telefono:cliTelefono.value, correo:cliCorreo.value, direccion:cliDireccion.value, saldo:0};
+  await apiPost(payload);
+  closeModalIfOpen();
+  resetFormCliente();
+  await reloadAll();
+}
+
+async function saveProveedor(){
+  const payload = modalState.type==="proveedor" ? {type:"proveedor", action:"update", id:modalState.id, nombre:provNombre.value, telefono:provTelefono.value, correo:provCorreo.value, direccion:provDireccion.value, saldo:Number(modalState.data.saldo||0)} :
+  {type:"proveedor", action:"create", nombre:provNombre.value, telefono:provTelefono.value, correo:provCorreo.value, direccion:provDireccion.value, saldo:0};
+  await apiPost(payload);
+  closeModalIfOpen();
+  resetFormProveedor();
+  await reloadAll();
+}
+
+async function saveIngreso(){
+  const c = DB.clientes.find(x=>String(x.id)===String(ingCliente.value));
+  const payload = modalState.type==="ingreso"
+    ? {type:"ingreso", action:"update", id:modalState.id, fecha:ingFecha.value, descripcion:ingDesc.value, monto:ingMonto.value, metodoPago:ingMetodo.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", referencia:ingRef.value}
+    : {type:"ingreso", action:"create", fecha:ingFecha.value, descripcion:ingDesc.value, monto:ingMonto.value, metodoPago:ingMetodo.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", referencia:ingRef.value};
+  await apiPost(payload);
+  closeModalIfOpen();
+  resetFormIngreso();
+  await reloadAll();
+}
+
+async function saveGasto(){
+  const p = DB.proveedores.find(x=>String(x.id)===String(gasProveedor.value));
+  const payload = modalState.type==="gasto"
+    ? {type:"gasto", action:"update", id:modalState.id, fecha:gasFecha.value, categoria:gasCategoria.value, descripcion:gasDesc.value, monto:gasMonto.value, tipoGasto:gasTipo.value, proveedorId:p ? p.id : "", proveedorNombre:p ? p.nombre : "", referencia:gasRef.value}
+    : {type:"gasto", action:"create", fecha:gasFecha.value, categoria:gasCategoria.value, descripcion:gasDesc.value, monto:gasMonto.value, tipoGasto:gasTipo.value, proveedorId:p ? p.id : "", proveedorNombre:p ? p.nombre : "", referencia:gasRef.value};
+  await apiPost(payload);
+  closeModalIfOpen();
+  resetFormGasto();
+  await reloadAll();
+}
+
+async function saveCuenta(){
+  await apiPost({type:"cuenta", action:"create", tipo:ctaTipo.value, terceroNombre:ctaTerceroNombre.value, descripcion:ctaDesc.value, monto:ctaMonto.value, vencimiento:ctaVencimiento.value, estado:ctaEstado.value});
+  await reloadAll();
+}
+
+async function saveFactura(){
+  const c = DB.clientes.find(x=>String(x.id)===String(facCliente.value));
+  const payload = modalState.type==="factura"
+    ? {type:"factura", action:"update", id:modalState.id, numero:facNumero.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", fecha:facFecha.value, vencimiento:facVencimiento.value, subtotal:facSubtotal.value, impuesto:facImpuesto.value, total:facTotal.value, estado:facEstado.value, notas:facNotas.value}
+    : {type:"factura", action:"create", numero:facNumero.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", fecha:facFecha.value, vencimiento:facVencimiento.value, subtotal:facSubtotal.value, impuesto:facImpuesto.value, total:facTotal.value, estado:facEstado.value, notas:facNotas.value};
+  await apiPost(payload);
+  closeModalIfOpen();
+  resetFormFactura();
+  await reloadAll();
+}
+
+async function deleteRegistro(type, id){
+  const map = {cliente:"cliente", proveedor:"proveedor", ingreso:"ingreso", gasto:"gasto", factura:"factura", cuenta:"cuenta"};
+  await apiPost({type:map[type], action:"delete", id});
+  if(type==="ingreso" || type==="gasto") await apiPost({type:"rebuildMovimientos", action:"run"});
+  await reloadAll();
+}
+
+function openModal(title, bodyHtml){
+  modalTitle.textContent = title;
+  modalBody.innerHTML = bodyHtml;
+  modalBackdrop.style.display = "flex";
+}
+function closeModal(){
+  modalBackdrop.style.display = "none";
+  modalState = { type:null, id:null, data:{} };
+}
+function closeModalIfOpen(){ if(modalBackdrop.style.display === "flex") closeModal(); }
+
+function modalSave(){
+  const type = modalState.type;
+  if(type === "cliente") saveCliente();
+  if(type === "proveedor") saveProveedor();
+  if(type === "ingreso") saveIngreso();
+  if(type === "gasto") saveGasto();
+  if(type === "factura") saveFactura();
+}
+
+function editCliente(id){
+  const x = DB.clientes.find(v=>String(v.id)===String(id)); if(!x) return;
+  modalState = { type:"cliente", id, data:x };
+  cliNombre.value = x.nombre || "";
+  cliTelefono.value = x.telefono || "";
+  cliCorreo.value = x.correo || "";
+  cliDireccion.value = x.direccion || "";
+  openModal("Editar cliente", `<p class="muted">Modifica los datos y guarda los cambios.</p>`);
+}
+
+function editProveedor(id){
+  const x = DB.proveedores.find(v=>String(v.id)===String(id)); if(!x) return;
+  modalState = { type:"proveedor", id, data:x };
+  provNombre.value = x.nombre || "";
+  provTelefono.value = x.telefono || "";
+  provCorreo.value = x.correo || "";
+  provDireccion.value = x.direccion || "";
+  openModal("Editar proveedor", `<p class="muted">Modifica los datos y guarda los cambios.</p>`);
+}
+
+function editIngreso(id){
+  const x = DB.ingresos.find(v=>String(v.id)===String(id)); if(!x) return;
+  modalState = { type:"ingreso", id, data:x };
+  ingFecha.value = x.fecha || "";
+  ingDesc.value = x.descripcion || "";
+  ingMonto.value = x.monto || "";
+  ingMetodo.value = x.metodoPago || "";
+  ingCliente.value = x.clienteId || "";
+  ingRef.value = x.referencia || "";
+  openModal("Editar ingreso", `<p class="muted">Modifica el ingreso y guarda los cambios.</p>`);
+}
+
+function editGasto(id){
+  const x = DB.gastos.find(v=>String(v.id)===String(id)); if(!x) return;
+  modalState = { type:"gasto", id, data:x };
+  gasFecha.value = x.fecha || "";
+  gasCategoria.value = x.categoria || "";
+  gasDesc.value = x.descripcion || "";
+  gasMonto.value = x.monto || "";
+  gasTipo.value = x.tipoGasto || "Fijo";
+  gasProveedor.value = x.proveedorId || "";
+  gasRef.value = x.referencia || "";
+  openModal("Editar gasto", `<p class="muted">Modifica el gasto y guarda los cambios.</p>`);
+}
+
+function editFactura(id){
+  const x = DB.facturas.find(v=>String(v.id)===String(id)); if(!x) return;
+  modalState = { type:"factura", id, data:x };
+  facNumero.value = x.numero || "";
+  facCliente.value = x.clienteId || "";
+  facFecha.value = x.fecha || "";
+  facVencimiento.value = x.vencimiento || "";
+  facSubtotal.value = x.subtotal || "";
+  facImpuesto.value = x.impuesto || "";
+  facTotal.value = x.total || "";
+  facEstado.value = x.estado || "Pendiente";
+  facNotas.value = x.notas || "";
+  openModal("Editar factura", `<p class="muted">Modifica la factura y guarda los cambios.</p>`);
+}
+
+function generateReport(){
+  const desde = repDesde.value;
+  const hasta = repHasta.value;
+  const ingresos = DB.ingresos.filter(x => (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta)).reduce((a,b)=>a+Number(b.monto||0),0);
+  const gastos = DB.gastos.filter(x => (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta)).reduce((a,b)=>a+Number(b.monto||0),0);
+  const utilidad = ingresos - gastos;
+  const movs = DB.movimientos.filter(x => (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta));
+  repIngresos.textContent = money(ingresos);
+  repGastos.textContent = money(gastos);
+  repUtilidad.textContent = money(utilidad);
+  repMovs.textContent = movs.length;
+}
+
+function drawCharts(){
+  google.charts.setOnLoadCallback(() => {
+    const monthMap = {};
+    DB.ingresos.forEach(i => {
+      const key = (i.fecha || "").slice(0,7); if(!key) return;
+      monthMap[key] = monthMap[key] || {ingresos:0,gastos:0};
+      monthMap[key].ingresos += Number(i.monto || 0);
+    });
+    DB.gastos.forEach(g => {
+      const key = (g.fecha || "").slice(0,7); if(!key) return;
+      monthMap[key] = monthMap[key] || {ingresos:0,gastos:0};
+      monthMap[key].gastos += Number(g.monto || 0);
+    });
+    const keys = Object.keys(monthMap).sort().slice(-12);
+    const ventasData = google.visualization.arrayToDataTable([["Mes","Ingresos"], ...keys.map(k => [k, monthMap[k].ingresos])]);
+    const gastosData = google.visualization.arrayToDataTable([["Mes","Gastos"], ...keys.map(k => [k, monthMap[k].gastos])]);
+    const utilData = google.visualization.arrayToDataTable([["Mes","Ingresos","Gastos","Utilidad"], ...keys.map(k => [k, monthMap[k].ingresos, monthMap[k].gastos, monthMap[k].ingresos - monthMap[k].gastos])]);
+    const opt = { height: 300, legend: { position: "top" }, chartArea: { width: "80%", height: "70%" } };
+    new google.visualization.ColumnChart(chartVentas).draw(ventasData, { title: "Ingresos por mes", ...opt });
+    new google.visualization.ColumnChart(chartGastos).draw(gastosData, { title: "Gastos por mes", ...opt });
+    new google.visualization.LineChart(chartUtilidad).draw(utilData, { title: "Ingresos, gastos y utilidad", ...opt });
+  });
+}
+
+function exportCSV(){
+  const rows = [["Tipo","Fecha","Descripción","Monto"]];
+  DB.ingresos.forEach(i => rows.push(["Ingreso", i.fecha, i.descripcion, i.monto]));
+  DB.gastos.forEach(g => rows.push(["Gasto", g.fecha, g.descripcion, g.monto]));
+  const csv = rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "reporte_contable.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+window.onload = () => {
+  ingFecha.valueAsDate = new Date();
+  gasFecha.valueAsDate = new Date();
+  facFecha.valueAsDate = new Date();
+};
+</script>
+</body>
+</html>
