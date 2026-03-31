@@ -58,7 +58,6 @@
     .two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
     .modal{width:100%;max-width:720px;background:#fff;border-radius:18px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.2)}
-    .modal h3{margin-bottom:14px}
     @media (max-width: 900px){
       .app{flex-direction:column}
       .sidebar{width:100%;height:auto;position:relative}
@@ -103,7 +102,7 @@
         <p>Panel formal de control financiero</p>
       </div>
       <div class="row-actions">
-        <button class="btn btn-ghost" onclick="reloadAll()">Actualizar</button>
+        <button class="btn btn-ghost" onclick="loadModule('dashboard')">Actualizar dashboard</button>
       </div>
     </div>
 
@@ -314,7 +313,7 @@
 <div id="modalBackdrop" class="modal-backdrop">
   <div class="modal">
     <h3 id="modalTitle">Editar</h3>
-    <div id="modalBody"></div>
+    <div id="modalBody" class="muted">Edición en curso.</div>
     <div class="row-actions" style="margin-top:14px;">
       <button class="btn btn-success" onclick="modalSave()">Guardar cambios</button>
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -323,12 +322,14 @@
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxpiQX1pO9v5tMaV-X8g0HDVG5QA4cOfqVPVyYc1Lmw_8d_sIR9Jao1LqJAv014QSRNGg/exec";
+const API_URL = "PON_AQUI_TU_URL_DE_WEB_APP";
 const USER = "admin";
-const PASS = "45.30.38";
+const PASS = "1234";
 
 let DB = { usuarios: [], clientes: [], proveedores: [], ingresos: [], gastos: [], facturas: [], movimientos: [], cuentas: [], configuracion: [] };
 let modalState = { type: null, id: null, data: {} };
+let loading = {};
+
 google.charts.load("current", { packages: ["corechart"] });
 
 function money(n){ return "₡" + Number(n || 0).toLocaleString("es-CR"); }
@@ -339,7 +340,7 @@ function login(){
   if(u===USER && p===PASS){
     loginScreen.classList.add("hidden");
     appScreen.classList.remove("hidden");
-    reloadAll();
+    loadModule("dashboard");
   } else {
     loginMsg.textContent = "Usuario o contraseña incorrectos.";
   }
@@ -351,8 +352,7 @@ function showSection(id, btn){
   document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
   btn.classList.add("active");
   pageTitle.textContent = btn.textContent;
-  if(id==="reportes") generateReport();
-  if(id==="dashboard") drawCharts();
+  loadModule(id);
 }
 
 async function apiGet(action){
@@ -369,74 +369,70 @@ async function apiPost(payload){
   return await res.json();
 }
 
-async function reloadAll(){
-  DB.usuarios = await apiGet("usuarios");
-  DB.clientes = await apiGet("clientes");
-  DB.proveedores = await apiGet("proveedores");
-  DB.ingresos = await apiGet("ingresos");
-  DB.gastos = await apiGet("gastos");
-  DB.facturas = await apiGet("facturas");
-  DB.movimientos = await apiGet("movimientos");
-  DB.cuentas = await apiGet("cuentas");
-  renderTables();
-  updateDashboard();
-  fillSelects();
-  drawCharts();
-}
+async function loadModule(module){
+  if (loading[module]) return;
+  loading[module] = true;
 
-function renderTables(){
-  clientesTable.innerHTML = DB.clientes.map(c=>`
-    <tr>
-      <td>${c.nombre||"-"}</td><td>${c.telefono||"-"}</td><td>${c.correo||"-"}</td><td>${money(c.saldo)}</td>
-      <td class="row-actions">
-        <button class="btn btn-ghost" onclick="editCliente('${c.id}')">Editar</button>
-        <button class="btn btn-danger" onclick="deleteRegistro('cliente','${c.id}')">Eliminar</button>
-      </td>
-    </tr>`).join("");
+  if(module==="dashboard"){
+    DB.ingresos = await apiGet("ingresos");
+    DB.gastos = await apiGet("gastos");
+    DB.movimientos = await apiGet("movimientos");
+    DB.cuentas = await apiGet("cuentas");
+    updateDashboard();
+    drawCharts();
+  }
 
-  proveedoresTable.innerHTML = DB.proveedores.map(p=>`
-    <tr>
-      <td>${p.nombre||"-"}</td><td>${p.telefono||"-"}</td><td>${p.correo||"-"}</td><td>${money(p.saldo)}</td>
-      <td class="row-actions">
-        <button class="btn btn-ghost" onclick="editProveedor('${p.id}')">Editar</button>
-        <button class="btn btn-danger" onclick="deleteRegistro('proveedor','${p.id}')">Eliminar</button>
-      </td>
-    </tr>`).join("");
+  if(module==="ingresos"){
+    DB.ingresos = await apiGet("ingresos");
+    DB.clientes = DB.clientes.length ? DB.clientes : await apiGet("clientes");
+    renderIngresos();
+    fillSelects();
+  }
 
-  ingresosTable.innerHTML = DB.ingresos.map(i=>`
-    <tr>
-      <td>${i.fecha||"-"}</td><td>${i.descripcion||"-"}</td><td>${money(i.monto)}</td><td>${i.metodoPago||"-"}</td><td>${i.clienteNombre||"-"}</td>
-      <td class="row-actions">
-        <button class="btn btn-ghost" onclick="editIngreso('${i.id}')">Editar</button>
-        <button class="btn btn-danger" onclick="deleteRegistro('ingreso','${i.id}')">Eliminar</button>
-      </td>
-    </tr>`).join("");
+  if(module==="gastos"){
+    DB.gastos = await apiGet("gastos");
+    DB.proveedores = DB.proveedores.length ? DB.proveedores : await apiGet("proveedores");
+    renderGastos();
+    fillSelects();
+  }
 
-  gastosTable.innerHTML = DB.gastos.map(g=>`
-    <tr>
-      <td>${g.fecha||"-"}</td><td>${g.categoria||"-"}</td><td>${g.descripcion||"-"}</td><td>${money(g.monto)}</td><td>${g.tipoGasto||"-"}</td><td>${g.proveedorNombre||"-"}</td>
-      <td class="row-actions">
-        <button class="btn btn-ghost" onclick="editGasto('${g.id}')">Editar</button>
-        <button class="btn btn-danger" onclick="deleteRegistro('gasto','${g.id}')">Eliminar</button>
-      </td>
-    </tr>`).join("");
+  if(module==="diario"){
+    DB.movimientos = await apiGet("movimientos");
+    renderDiario();
+  }
 
-  diarioTable.innerHTML = DB.movimientos.map(m=>`
-    <tr><td>${m.fecha||"-"}</td><td>${m.tipo||"-"}</td><td>${m.descripcion||"-"}</td><td>${money(m.monto)}</td><td>${money(m.saldoAcumulado || m.saldo)}</td></tr>
-  `).join("");
+  if(module==="clientes"){
+    DB.clientes = await apiGet("clientes");
+    renderClientes();
+    fillSelects();
+  }
 
-  cuentasTable.innerHTML = DB.cuentas.map(c=>`
-    <tr><td>${c.tipo||"-"}</td><td>${c.terceroNombre||"-"}</td><td>${c.descripcion||"-"}</td><td>${money(c.monto)}</td><td>${c.vencimiento||"-"}</td><td>${c.estado||"-"}</td></tr>
-  `).join("");
+  if(module==="proveedores"){
+    DB.proveedores = await apiGet("proveedores");
+    renderProveedores();
+    fillSelects();
+  }
 
-  facturasTable.innerHTML = DB.facturas.map(f=>`
-    <tr>
-      <td>${f.numero||"-"}</td><td>${f.clienteNombre||"-"}</td><td>${f.fecha||"-"}</td><td>${f.vencimiento||"-"}</td><td>${money(f.total)}</td><td>${f.estado||"-"}</td>
-      <td class="row-actions">
-        <button class="btn btn-ghost" onclick="editFactura('${f.id}')">Editar</button>
-        <button class="btn btn-danger" onclick="deleteRegistro('factura','${f.id}')">Eliminar</button>
-      </td>
-    </tr>`).join("");
+  if(module==="cuentas"){
+    DB.cuentas = await apiGet("cuentas");
+    renderCuentas();
+  }
+
+  if(module==="facturas"){
+    DB.facturas = await apiGet("facturas");
+    DB.clientes = DB.clientes.length ? DB.clientes : await apiGet("clientes");
+    renderFacturas();
+    fillSelects();
+  }
+
+  if(module==="reportes"){
+    DB.ingresos = await apiGet("ingresos");
+    DB.gastos = await apiGet("gastos");
+    DB.movimientos = await apiGet("movimientos");
+    generateReport();
+  }
+
+  loading[module] = false;
 }
 
 function updateDashboard(){
@@ -449,7 +445,6 @@ function updateDashboard(){
   const gananciaMensual = DB.ingresos.filter(x => (x.fecha||"").startsWith(ym)).reduce((a,b)=>a+Number(b.monto||0),0) - DB.gastos.filter(x => (x.fecha||"").startsWith(ym)).reduce((a,b)=>a+Number(b.monto||0),0);
   const cobrar = DB.cuentas.filter(c => c.tipo==="Por Cobrar" && c.estado==="Pendiente").reduce((a,b)=>a+Number(b.monto||0),0);
   const pagar = DB.cuentas.filter(c => c.tipo==="Por Pagar" && c.estado==="Pendiente").reduce((a,b)=>a+Number(b.monto||0),0);
-
   kpiIngresos.textContent = money(ingresos);
   kpiGastos.textContent = money(gastos);
   kpiBalance.textContent = money(balance);
@@ -458,10 +453,77 @@ function updateDashboard(){
   kpiPagar.textContent = money(pagar);
 }
 
+function renderClientes(){
+  clientesTable.innerHTML = DB.clientes.map(c=>`
+    <tr>
+      <td>${c.nombre||"-"}</td><td>${c.telefono||"-"}</td><td>${c.correo||"-"}</td><td>${money(c.saldo)}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editCliente('${c.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('cliente','${c.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+}
+
+function renderProveedores(){
+  proveedoresTable.innerHTML = DB.proveedores.map(p=>`
+    <tr>
+      <td>${p.nombre||"-"}</td><td>${p.telefono||"-"}</td><td>${p.correo||"-"}</td><td>${money(p.saldo)}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editProveedor('${p.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('proveedor','${p.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+}
+
+function renderIngresos(){
+  ingresosTable.innerHTML = DB.ingresos.map(i=>`
+    <tr>
+      <td>${i.fecha||"-"}</td><td>${i.descripcion||"-"}</td><td>${money(i.monto)}</td><td>${i.metodoPago||"-"}</td><td>${i.clienteNombre||"-"}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editIngreso('${i.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('ingreso','${i.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+}
+
+function renderGastos(){
+  gastosTable.innerHTML = DB.gastos.map(g=>`
+    <tr>
+      <td>${g.fecha||"-"}</td><td>${g.categoria||"-"}</td><td>${g.descripcion||"-"}</td><td>${money(g.monto)}</td><td>${g.tipoGasto||"-"}</td><td>${g.proveedorNombre||"-"}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editGasto('${g.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('gasto','${g.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+}
+
+function renderDiario(){
+  diarioTable.innerHTML = DB.movimientos.map(m=>`
+    <tr><td>${m.fecha||"-"}</td><td>${m.tipo||"-"}</td><td>${m.descripcion||"-"}</td><td>${money(m.monto)}</td><td>${money(m.saldoAcumulado || m.saldo)}</td></tr>
+  `).join("");
+}
+
+function renderCuentas(){
+  cuentasTable.innerHTML = DB.cuentas.map(c=>`
+    <tr><td>${c.tipo||"-"}</td><td>${c.terceroNombre||"-"}</td><td>${c.descripcion||"-"}</td><td>${money(c.monto)}</td><td>${c.vencimiento||"-"}</td><td>${c.estado||"-"}</td></tr>
+  `).join("");
+}
+
+function renderFacturas(){
+  facturasTable.innerHTML = DB.facturas.map(f=>`
+    <tr>
+      <td>${f.numero||"-"}</td><td>${f.clienteNombre||"-"}</td><td>${f.fecha||"-"}</td><td>${f.vencimiento||"-"}</td><td>${money(f.total)}</td><td>${f.estado||"-"}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" onclick="editFactura('${f.id}')">Editar</button>
+        <button class="btn btn-danger" onclick="deleteRegistro('factura','${f.id}')">Eliminar</button>
+      </td>
+    </tr>`).join("");
+}
+
 function fillSelects(){
-  ingCliente.innerHTML = `<option value="">Sin cliente</option>` + DB.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
-  gasProveedor.innerHTML = `<option value="">Sin proveedor</option>` + DB.proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
-  facCliente.innerHTML = `<option value="">Seleccione</option>` + DB.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+  if (ingCliente) ingCliente.innerHTML = `<option value="">Sin cliente</option>` + DB.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+  if (gasProveedor) gasProveedor.innerHTML = `<option value="">Sin proveedor</option>` + DB.proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+  if (facCliente) facCliente.innerHTML = `<option value="">Seleccione</option>` + DB.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
 }
 
 function resetFormCliente(){ cliNombre.value=""; cliTelefono.value=""; cliCorreo.value=""; cliDireccion.value=""; }
@@ -471,21 +533,25 @@ function resetFormGasto(){ gasCategoria.value=""; gasDesc.value=""; gasMonto.val
 function resetFormFactura(){ facNumero.value=""; facFecha.value=""; facVencimiento.value=""; facSubtotal.value=""; facImpuesto.value=""; facTotal.value=""; facNotas.value=""; facEstado.value="Pendiente"; facCliente.value=""; }
 
 async function saveCliente(){
-  const payload = modalState.type==="cliente" ? {type:"cliente", action:"update", id:modalState.id, nombre:cliNombre.value, telefono:cliTelefono.value, correo:cliCorreo.value, direccion:cliDireccion.value, saldo:Number(modalState.data.saldo||0)} :
-  {type:"cliente", action:"create", nombre:cliNombre.value, telefono:cliTelefono.value, correo:cliCorreo.value, direccion:cliDireccion.value, saldo:0};
+  const payload = modalState.type==="cliente"
+    ? {type:"cliente", action:"update", id:modalState.id, nombre:cliNombre.value, telefono:cliTelefono.value, correo:cliCorreo.value, direccion:cliDireccion.value, saldo:Number(modalState.data.saldo||0)}
+    : {type:"cliente", action:"create", nombre:cliNombre.value, telefono:cliTelefono.value, correo:cliCorreo.value, direccion:cliDireccion.value, saldo:0};
+
   await apiPost(payload);
   closeModalIfOpen();
   resetFormCliente();
-  await reloadAll();
+  await loadModule("clientes");
 }
 
 async function saveProveedor(){
-  const payload = modalState.type==="proveedor" ? {type:"proveedor", action:"update", id:modalState.id, nombre:provNombre.value, telefono:provTelefono.value, correo:provCorreo.value, direccion:provDireccion.value, saldo:Number(modalState.data.saldo||0)} :
-  {type:"proveedor", action:"create", nombre:provNombre.value, telefono:provTelefono.value, correo:provCorreo.value, direccion:provDireccion.value, saldo:0};
+  const payload = modalState.type==="proveedor"
+    ? {type:"proveedor", action:"update", id:modalState.id, nombre:provNombre.value, telefono:provTelefono.value, correo:provCorreo.value, direccion:provDireccion.value, saldo:Number(modalState.data.saldo||0)}
+    : {type:"proveedor", action:"create", nombre:provNombre.value, telefono:provTelefono.value, correo:provCorreo.value, direccion:provDireccion.value, saldo:0};
+
   await apiPost(payload);
   closeModalIfOpen();
   resetFormProveedor();
-  await reloadAll();
+  await loadModule("proveedores");
 }
 
 async function saveIngreso(){
@@ -493,10 +559,12 @@ async function saveIngreso(){
   const payload = modalState.type==="ingreso"
     ? {type:"ingreso", action:"update", id:modalState.id, fecha:ingFecha.value, descripcion:ingDesc.value, monto:ingMonto.value, metodoPago:ingMetodo.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", referencia:ingRef.value}
     : {type:"ingreso", action:"create", fecha:ingFecha.value, descripcion:ingDesc.value, monto:ingMonto.value, metodoPago:ingMetodo.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", referencia:ingRef.value};
+
   await apiPost(payload);
   closeModalIfOpen();
   resetFormIngreso();
-  await reloadAll();
+  await loadModule("ingresos");
+  await loadModule("dashboard");
 }
 
 async function saveGasto(){
@@ -504,15 +572,19 @@ async function saveGasto(){
   const payload = modalState.type==="gasto"
     ? {type:"gasto", action:"update", id:modalState.id, fecha:gasFecha.value, categoria:gasCategoria.value, descripcion:gasDesc.value, monto:gasMonto.value, tipoGasto:gasTipo.value, proveedorId:p ? p.id : "", proveedorNombre:p ? p.nombre : "", referencia:gasRef.value}
     : {type:"gasto", action:"create", fecha:gasFecha.value, categoria:gasCategoria.value, descripcion:gasDesc.value, monto:gasMonto.value, tipoGasto:gasTipo.value, proveedorId:p ? p.id : "", proveedorNombre:p ? p.nombre : "", referencia:gasRef.value};
+
   await apiPost(payload);
   closeModalIfOpen();
   resetFormGasto();
-  await reloadAll();
+  await loadModule("gastos");
+  await loadModule("dashboard");
+  await loadModule("diario");
 }
 
 async function saveCuenta(){
   await apiPost({type:"cuenta", action:"create", tipo:ctaTipo.value, terceroNombre:ctaTerceroNombre.value, descripcion:ctaDesc.value, monto:ctaMonto.value, vencimiento:ctaVencimiento.value, estado:ctaEstado.value});
-  await reloadAll();
+  await loadModule("cuentas");
+  await loadModule("dashboard");
 }
 
 async function saveFactura(){
@@ -520,17 +592,25 @@ async function saveFactura(){
   const payload = modalState.type==="factura"
     ? {type:"factura", action:"update", id:modalState.id, numero:facNumero.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", fecha:facFecha.value, vencimiento:facVencimiento.value, subtotal:facSubtotal.value, impuesto:facImpuesto.value, total:facTotal.value, estado:facEstado.value, notas:facNotas.value}
     : {type:"factura", action:"create", numero:facNumero.value, clienteId:c ? c.id : "", clienteNombre:c ? c.nombre : "", fecha:facFecha.value, vencimiento:facVencimiento.value, subtotal:facSubtotal.value, impuesto:facImpuesto.value, total:facTotal.value, estado:facEstado.value, notas:facNotas.value};
+
   await apiPost(payload);
   closeModalIfOpen();
   resetFormFactura();
-  await reloadAll();
+  await loadModule("facturas");
 }
 
 async function deleteRegistro(type, id){
   const map = {cliente:"cliente", proveedor:"proveedor", ingreso:"ingreso", gasto:"gasto", factura:"factura", cuenta:"cuenta"};
   await apiPost({type:map[type], action:"delete", id});
-  if(type==="ingreso" || type==="gasto") await apiPost({type:"rebuildMovimientos", action:"run"});
-  await reloadAll();
+  if(type==="ingreso" || type==="gasto"){
+    await apiPost({type:"rebuildMovimientos", action:"run"});
+    await loadModule("diario");
+    await loadModule("dashboard");
+  }
+  if(type==="cliente") await loadModule("clientes");
+  if(type==="proveedor") await loadModule("proveedores");
+  if(type==="factura") await loadModule("facturas");
+  if(type==="cuenta") await loadModule("cuentas");
 }
 
 function openModal(title, bodyHtml){
@@ -543,74 +623,43 @@ function closeModal(){
   modalState = { type:null, id:null, data:{} };
 }
 function closeModalIfOpen(){ if(modalBackdrop.style.display === "flex") closeModal(); }
-
 function modalSave(){
-  const type = modalState.type;
-  if(type === "cliente") saveCliente();
-  if(type === "proveedor") saveProveedor();
-  if(type === "ingreso") saveIngreso();
-  if(type === "gasto") saveGasto();
-  if(type === "factura") saveFactura();
+  if(modalState.type === "cliente") saveCliente();
+  if(modalState.type === "proveedor") saveProveedor();
+  if(modalState.type === "ingreso") saveIngreso();
+  if(modalState.type === "gasto") saveGasto();
+  if(modalState.type === "factura") saveFactura();
 }
 
 function editCliente(id){
   const x = DB.clientes.find(v=>String(v.id)===String(id)); if(!x) return;
   modalState = { type:"cliente", id, data:x };
-  cliNombre.value = x.nombre || "";
-  cliTelefono.value = x.telefono || "";
-  cliCorreo.value = x.correo || "";
-  cliDireccion.value = x.direccion || "";
-  openModal("Editar cliente", `<p class="muted">Modifica los datos y guarda los cambios.</p>`);
+  cliNombre.value = x.nombre || ""; cliTelefono.value = x.telefono || ""; cliCorreo.value = x.correo || ""; cliDireccion.value = x.direccion || "";
+  openModal("Editar cliente", "Edita los datos y guarda los cambios.");
 }
-
 function editProveedor(id){
   const x = DB.proveedores.find(v=>String(v.id)===String(id)); if(!x) return;
   modalState = { type:"proveedor", id, data:x };
-  provNombre.value = x.nombre || "";
-  provTelefono.value = x.telefono || "";
-  provCorreo.value = x.correo || "";
-  provDireccion.value = x.direccion || "";
-  openModal("Editar proveedor", `<p class="muted">Modifica los datos y guarda los cambios.</p>`);
+  provNombre.value = x.nombre || ""; provTelefono.value = x.telefono || ""; provCorreo.value = x.correo || ""; provDireccion.value = x.direccion || "";
+  openModal("Editar proveedor", "Edita los datos y guarda los cambios.");
 }
-
 function editIngreso(id){
   const x = DB.ingresos.find(v=>String(v.id)===String(id)); if(!x) return;
   modalState = { type:"ingreso", id, data:x };
-  ingFecha.value = x.fecha || "";
-  ingDesc.value = x.descripcion || "";
-  ingMonto.value = x.monto || "";
-  ingMetodo.value = x.metodoPago || "";
-  ingCliente.value = x.clienteId || "";
-  ingRef.value = x.referencia || "";
-  openModal("Editar ingreso", `<p class="muted">Modifica el ingreso y guarda los cambios.</p>`);
+  ingFecha.value = x.fecha || ""; ingDesc.value = x.descripcion || ""; ingMonto.value = x.monto || ""; ingMetodo.value = x.metodoPago || ""; ingCliente.value = x.clienteId || ""; ingRef.value = x.referencia || "";
+  openModal("Editar ingreso", "Edita el ingreso y guarda los cambios.");
 }
-
 function editGasto(id){
   const x = DB.gastos.find(v=>String(v.id)===String(id)); if(!x) return;
   modalState = { type:"gasto", id, data:x };
-  gasFecha.value = x.fecha || "";
-  gasCategoria.value = x.categoria || "";
-  gasDesc.value = x.descripcion || "";
-  gasMonto.value = x.monto || "";
-  gasTipo.value = x.tipoGasto || "Fijo";
-  gasProveedor.value = x.proveedorId || "";
-  gasRef.value = x.referencia || "";
-  openModal("Editar gasto", `<p class="muted">Modifica el gasto y guarda los cambios.</p>`);
+  gasFecha.value = x.fecha || ""; gasCategoria.value = x.categoria || ""; gasDesc.value = x.descripcion || ""; gasMonto.value = x.monto || ""; gasTipo.value = x.tipoGasto || "Fijo"; gasProveedor.value = x.proveedorId || ""; gasRef.value = x.referencia || "";
+  openModal("Editar gasto", "Edita el gasto y guarda los cambios.");
 }
-
 function editFactura(id){
   const x = DB.facturas.find(v=>String(v.id)===String(id)); if(!x) return;
   modalState = { type:"factura", id, data:x };
-  facNumero.value = x.numero || "";
-  facCliente.value = x.clienteId || "";
-  facFecha.value = x.fecha || "";
-  facVencimiento.value = x.vencimiento || "";
-  facSubtotal.value = x.subtotal || "";
-  facImpuesto.value = x.impuesto || "";
-  facTotal.value = x.total || "";
-  facEstado.value = x.estado || "Pendiente";
-  facNotas.value = x.notas || "";
-  openModal("Editar factura", `<p class="muted">Modifica la factura y guarda los cambios.</p>`);
+  facNumero.value = x.numero || ""; facCliente.value = x.clienteId || ""; facFecha.value = x.fecha || ""; facVencimiento.value = x.vencimiento || ""; facSubtotal.value = x.subtotal || ""; facImpuesto.value = x.impuesto || ""; facTotal.value = x.total || ""; facEstado.value = x.estado || "Pendiente"; facNotas.value = x.notas || "";
+  openModal("Editar factura", "Edita la factura y guarda los cambios.");
 }
 
 function generateReport(){
